@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Array exposing (Array)
-import Html exposing (Html, div, h1, img, text)
+import Html exposing (Html, button, div, h1, img, text)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 
@@ -26,15 +26,21 @@ urlPrefix =
 
 update : Message -> Model -> Model
 update message model =
-    if message.operation == "SELECT_PHOTO" then
-        { model | selectedUrl = message.data }
-    else
-        model
+    case message.operation of
+        "SELECT_PHOTO" ->
+            { model | selectedUrl = message.data }
+        "SURPRISE_ME" ->
+            { model | selectedUrl = "2.jpeg" }
+        _ ->
+            model
 
 view: Model -> Html Message
 view model =
     div [ class "content" ]
         [ h1 [] [ text "Photo Groove" ]
+        , button
+            [ onClick { operation = "SURPRISE_ME", data = "" } ]
+            [ text "Surprise Me!" ]
         , div [ id "thumbnails" ]
             (List.map (viewThumbnail model.selectedUrl) model.photos)
         , img
