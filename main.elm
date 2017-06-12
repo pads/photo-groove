@@ -6,10 +6,6 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 
 
-type alias Message =
-    { operation : String, data : String }
-
-
 type alias Photo =
     { url : String }
 
@@ -19,6 +15,12 @@ type alias Model =
     , selectedUrl : String
     , chosenSize: ThumbnailSize
     }
+
+
+type  Message
+    = SelectByUrl String
+    | SurpriseMe
+    | SetSize ThumbnailSize
 
 
 type ThumbnailSize
@@ -34,15 +36,15 @@ urlPrefix =
 
 update : Message -> Model -> Model
 update message model =
-    case message.operation of
-        "SELECT_PHOTO" ->
-            { model | selectedUrl = message.data }
+    case message of
+        SelectByUrl url ->
+            { model | selectedUrl = url }
 
-        "SURPRISE_ME" ->
+        SurpriseMe ->
             { model | selectedUrl = "2.jpeg" }
 
-        _ ->
-            model
+        SetSize size ->
+            { model | chosenSize = size }
 
 
 view : Model -> Html Message
@@ -50,7 +52,7 @@ view model =
     div [ class "content" ]
         [ h1 [] [ text "Photo Groove" ]
         , button
-            [ onClick { operation = "SURPRISE_ME", data = "" } ]
+            [ onClick SurpriseMe ]
             [ text "Surprise Me!" ]
         , h3 [] [ text "Thumbnail Size:" ]
         , div [ id "choose-size" ]
@@ -70,7 +72,7 @@ viewThumbnail selectedUrl thumbnail =
     img
         [ src (urlPrefix ++ thumbnail.url)
         , classList [ ( "selected", selectedUrl == thumbnail.url ) ]
-        , onClick { operation = "SELECT_PHOTO", data = thumbnail.url }
+        , onClick (SelectByUrl thumbnail.url)
         ]
         []
 
@@ -78,7 +80,7 @@ viewThumbnail selectedUrl thumbnail =
 viewSizeChooser: ThumbnailSize -> Html Message
 viewSizeChooser size =
     label []
-        [ input [ type_ "radio", name "size" ] []
+        [ input [ type_ "radio", name "size", onClick (SetSize size) ] []
         , text (sizeToString size)
         ]
 
@@ -105,6 +107,13 @@ initialModel =
     , chosenSize = Medium
     }
 
+getPhotoUrl : Int -> String
+getPhotoUrl index =
+    case Array.get index photoArray of
+        Just photo ->
+            photo.url
+        Nothing ->
+            ""
 
 photoArray : Array Photo
 photoArray =
