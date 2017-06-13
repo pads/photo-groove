@@ -4,6 +4,7 @@ import Array exposing (Array)
 import Html exposing (Html, button, div, h1, h3, label, img, input, text)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Random
 
 
 type alias Photo =
@@ -13,12 +14,13 @@ type alias Photo =
 type alias Model =
     { photos : List Photo
     , selectedUrl : String
-    , chosenSize: ThumbnailSize
+    , chosenSize : ThumbnailSize
     }
 
 
-type  Message
+type Message
     = SelectByUrl String
+    | SelectByIndex Int
     | SurpriseMe
     | SetSize ThumbnailSize
 
@@ -34,17 +36,20 @@ urlPrefix =
     "http://elm-in-action.com/"
 
 
-update : Message -> Model -> Model
+update : Message -> Model -> ( Model, Cmd Message )
 update message model =
     case message of
         SelectByUrl url ->
-            { model | selectedUrl = url }
+            ( { model | selectedUrl = url }, Cmd.none )
+
+        SelectByIndex index ->
+            ( { model | selectedUrl = getPhotoUrl index }, Cmd.none )
 
         SurpriseMe ->
-            { model | selectedUrl = "2.jpeg" }
+            ( model, Random.generate SelectByIndex randomPhotoPicker )
 
         SetSize size ->
-            { model | chosenSize = size }
+            ( { model | chosenSize = size }, Cmd.none )
 
 
 view : Model -> Html Message
@@ -56,7 +61,7 @@ view model =
             [ text "Surprise Me!" ]
         , h3 [] [ text "Thumbnail Size:" ]
         , div [ id "choose-size" ]
-            (List.map viewSizeChooser [ Small, Medium, Large ] )
+            (List.map viewSizeChooser [ Small, Medium, Large ])
         , div [ id "thumbnails", class (sizeToString model.chosenSize) ]
             (List.map (viewThumbnail model.selectedUrl) model.photos)
         , img
@@ -77,7 +82,7 @@ viewThumbnail selectedUrl thumbnail =
         []
 
 
-viewSizeChooser: ThumbnailSize -> Html Message
+viewSizeChooser : ThumbnailSize -> Html Message
 viewSizeChooser size =
     label []
         [ input [ type_ "radio", name "size", onClick (SetSize size) ] []
@@ -85,15 +90,17 @@ viewSizeChooser size =
         ]
 
 
-sizeToString: ThumbnailSize -> String
+sizeToString : ThumbnailSize -> String
 sizeToString size =
-      case size of
-          Small ->
-              "small"
-          Medium ->
-              "medium"
-          Large ->
-              "large"
+    case size of
+        Small ->
+            "small"
+
+        Medium ->
+            "medium"
+
+        Large ->
+            "large"
 
 
 initialModel : Model
@@ -107,18 +114,32 @@ initialModel =
     , chosenSize = Medium
     }
 
+
 getPhotoUrl : Int -> String
 getPhotoUrl index =
     case Array.get index photoArray of
         Just photo ->
             photo.url
+
         Nothing ->
             ""
+
 
 photoArray : Array Photo
 photoArray =
     Array.fromList initialModel.photos
 
 
+randomPhotoPicker : Random.Generator Int
+randomPhotoPicker =
+    Random.int 0 (Array.length photoArray - 1)
+
+
+main : Program Never Model Message
 main =
-    Html.beginnerProgram { model = initialModel, view = view, update = update }
+    Html.program
+        { init = ( initialModel, Cmd.none )
+        , view = view
+        , update = update
+        , subscriptions = (\model -> Sub.none)
+        }
