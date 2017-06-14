@@ -4,6 +4,7 @@ import Array exposing (Array)
 import Html exposing (Html, button, div, h1, h3, label, img, input, text)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Http
 import Random
 
 
@@ -13,7 +14,8 @@ type alias Photo =
 
 type alias Model =
     { photos : List Photo
-    , selectedUrl : String
+    , selectedUrl : Maybe String
+    , loadingError : Maybe String
     , chosenSize : ThumbnailSize
     }
 
@@ -23,6 +25,7 @@ type Message
     | SelectByIndex Int
     | SurpriseMe
     | SetSize ThumbnailSize
+    | LoadPhotos (Result Http.Error String)
 
 
 type ThumbnailSize
@@ -40,16 +43,42 @@ update : Message -> Model -> ( Model, Cmd Message )
 update message model =
     case message of
         SelectByUrl url ->
-            ( { model | selectedUrl = url }, Cmd.none )
+            ( { model | selectedUrl = Just url }, Cmd.none )
 
         SelectByIndex index ->
-            ( { model | selectedUrl = getPhotoUrl index }, Cmd.none )
+            let
+                newSelectedUrl : Maybe String
+                newSelectedUrl =
+                    model.photos
+                        |> Array.fromList
+                        |> Array.get index
+                        |> Maybe.map .url
+            in
+                ( { model | selectedUrl = newSelectedUrl }, Cmd.none )
 
         SurpriseMe ->
-            ( model, Random.generate SelectByIndex randomPhotoPicker )
+            let
+                randomPhotoPicker : Random.Generator Int
+                randomPhotoPicker =
+                    Random.int 0 (List.length model.photos - 1)
+            in
+                ( model, Random.generate SelectByIndex randomPhotoPicker )
 
         SetSize size ->
             ( { model | chosenSize = size }, Cmd.none )
+
+        LoadPhotos (Ok response) ->
+            let
+                urls =
+                    String.split "," response
+
+                photos =
+                    List.map Photo urls
+            in
+                ( { model | photos = photos }, Cmd.none )
+
+        LoadPhotos (Err _) ->
+            ( model, Cmd.none )
 
 
 view : Model -> Html Message
@@ -64,19 +93,25 @@ view model =
             (List.map viewSizeChooser [ Small, Medium, Large ])
         , div [ id "thumbnails", class (sizeToString model.chosenSize) ]
             (List.map (viewThumbnail model.selectedUrl) model.photos)
-        , img
-            [ src (urlPrefix ++ "large/" ++ model.selectedUrl)
-            , class "large"
-            ]
-            []
+        , viewLarge model.selectedUrl
         ]
 
 
-viewThumbnail : String -> Photo -> Html Message
+viewLarge : Maybe String -> Html Message
+viewLarge selectedUrl =
+    case selectedUrl of
+        Nothing ->
+            text ""
+
+        Just selectedUrl ->
+            img [ class "large", src (urlPrefix ++ "large/" ++ selectedUrl) ] []
+
+
+viewThumbnail : Maybe String -> Photo -> Html Message
 viewThumbnail selectedUrl thumbnail =
     img
         [ src (urlPrefix ++ thumbnail.url)
-        , classList [ ( "selected", selectedUrl == thumbnail.url ) ]
+        , classList [ ( "selected", selectedUrl == Just thumbnail.url ) ]
         , onClick (SelectByUrl thumbnail.url)
         ]
         []
@@ -105,41 +140,25 @@ sizeToString size =
 
 initialModel : Model
 initialModel =
-    { photos =
-        [ { url = "1.jpeg" }
-        , { url = "2.jpeg" }
-        , { url = "3.jpeg" }
-        ]
-    , selectedUrl = "1.jpeg"
+    { photos = []
+    , selectedUrl = Nothing
+    , loadingError = Nothing
     , chosenSize = Medium
     }
 
 
-getPhotoUrl : Int -> String
-getPhotoUrl index =
-    case Array.get index photoArray of
-        Just photo ->
-            photo.url
-
-        Nothing ->
-            ""
-
-
-photoArray : Array Photo
-photoArray =
-    Array.fromList initialModel.photos
-
-
-randomPhotoPicker : Random.Generator Int
-randomPhotoPicker =
-    Random.int 0 (Array.length photoArray - 1)
+initialCommand : Cmd Message
+initialCommand =
+    "http://elm-in-action.com/photos/list"
+        |> Http.getString
+        |> Http.send LoadPhotos
 
 
 main : Program Never Model Message
 main =
     Html.program
-        { init = ( initialModel, Cmd.none )
+        { init = ( initialModel, initialCommand )
         , view = view
         , update = update
-        , subscriptions = (\model -> Sub.none)
+        , subscriptions = (\_ -> Sub.none)
         }
