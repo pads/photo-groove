@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Array exposing (Array)
-import Html exposing (Html, button, div, h1, h3, label, img, input, text)
+import Html exposing (Html, button, div, h1, h3, label, img, input, p, text)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
@@ -83,7 +83,20 @@ update message model =
                 )
 
         LoadPhotos (Err _) ->
-            ( model, Cmd.none )
+            ( { model | loadingError = Just "Error!" }, Cmd.none )
+
+
+viewOrError : Model -> Html Message
+viewOrError model =
+    case model.loadingError of
+        Nothing ->
+            view model
+
+        Just errorMessage ->
+            div [ class "error-message" ]
+                [ h1 [] [ text "Photo Groove" ]
+                , p [] [ text errorMessage ]
+                ]
 
 
 view : Model -> Html Message
@@ -163,7 +176,7 @@ main : Program Never Model Message
 main =
     Html.program
         { init = ( initialModel, initialCommand )
-        , view = view
+        , view = viewOrError
         , update = update
         , subscriptions = (\_ -> Sub.none)
         }
