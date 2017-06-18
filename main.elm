@@ -2,14 +2,19 @@ module Main exposing (..)
 
 import Array exposing (Array)
 import Html exposing (Html, button, div, h1, h3, label, img, input, p, text)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (id, class, classList, src, name, type_, title)
 import Html.Events exposing (onClick)
 import Http
+import Json.Decode exposing (Decoder, string, int, list)
+import Json.Decode.Pipeline exposing (decode, required, optional)
 import Random
 
 
 type alias Photo =
-    { url : String }
+    { url : String
+    , size : Int
+    , title : String
+    }
 
 
 type alias Model =
@@ -25,7 +30,7 @@ type Message
     | SelectByIndex Int
     | SurpriseMe
     | SetSize ThumbnailSize
-    | LoadPhotos (Result Http.Error String)
+    | LoadPhotos (Result Http.Error (List Photo))
 
 
 type ThumbnailSize
@@ -37,6 +42,14 @@ type ThumbnailSize
 urlPrefix : String
 urlPrefix =
     "http://elm-in-action.com/"
+
+
+photoDecoder : Decoder Photo
+photoDecoder =
+    decode Photo
+        |> required "url" string
+        |> required "size" int
+        |> optional "title" string "(untitled)"
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -67,20 +80,13 @@ update message model =
         SetSize size ->
             ( { model | chosenSize = size }, Cmd.none )
 
-        LoadPhotos (Ok response) ->
-            let
-                urls =
-                    String.split "," response
-
-                photos =
-                    List.map Photo urls
-            in
-                ( { model
-                    | photos = photos
-                    , selectedUrl = List.head urls
-                  }
-                , Cmd.none
-                )
+        LoadPhotos (Ok photos) ->
+            ( { model
+                | photos = photos
+                , selectedUrl = Maybe.map .url (List.head photos)
+              }
+            , Cmd.none
+            )
 
         LoadPhotos (Err _) ->
             ( { model | loadingError = Just "Error!" }, Cmd.none )
@@ -129,6 +135,7 @@ viewThumbnail : Maybe String -> Photo -> Html Message
 viewThumbnail selectedUrl thumbnail =
     img
         [ src (urlPrefix ++ thumbnail.url)
+        , title (thumbnail.title ++ " [" ++ toString thumbnail.size  ++ " KB]")
         , classList [ ( "selected", selectedUrl == Just thumbnail.url ) ]
         , onClick (SelectByUrl thumbnail.url)
         ]
@@ -167,8 +174,8 @@ initialModel =
 
 initialCommand : Cmd Message
 initialCommand =
-    "http://elm-in-action.com/photos/list"
-        |> Http.getString
+    list photoDecoder
+        |> Http.get "http://elm-in-action.com/photos/list.json"
         |> Http.send LoadPhotos
 
 
